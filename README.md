@@ -6,6 +6,8 @@ You know who you are. You top up **$2 worth of DeepSeek credits** because "that'
 
 This little menu bar app sits in your macOS top bar and **shows your remaining DeepSeek balance at all times**. No more refreshing the billing page. No more "did my $2 run out yet?" panic. Just a beautiful whale icon and a number that slowly, inexorably, decreases.
 
+If you are looking for fancy features (that u might not even understand), you won't find them here. There are hundreds of balance trackers out there; go seek them. 
+
 **Turns red when you're under $1.** You know, the danger zone.
 
 ![screenshot-full](screenshot-full.png)
