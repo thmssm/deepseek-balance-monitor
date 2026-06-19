@@ -1,4 +1,4 @@
-# 🐋 DeepSeek Balance Monitor
+# 🐋 DeepSeek Balance Monitor — [Download v1.0](https://github.com/thmssm/deepseek-balance-monitor/releases/latest)
 
 ### For the $2 top-up gang
 
@@ -8,15 +8,9 @@ This little menu bar app sits in your macOS top bar and **shows your remaining D
 
 **Turns red when you're under $1.** You know, the danger zone.
 
----
+![screenshot-full](screenshot-full.png)
 
-### What it looks like
-
-![The full menu bar — it's up there, tiny, haunting](screenshot-full.png)
-*Zoom in. It's there. Right next to the battery. Haunting you.*
-
-![The balance close-up, pixelated for your anxiety](screenshot.png)
-*2.74 USD when I took this. It's 2.72 now. I just watched it drop writing this sentence.*
+![screenshot-closeup](screenshot.png)
 
 ---
 
@@ -31,23 +25,21 @@ This little menu bar app sits in your macOS top bar and **shows your remaining D
 
 ---
 
-### How to Install
+### Download
 
-#### 1. Set your API key
+**[⬇ Download DeepSeek Balance v1.0](https://github.com/thmssm/deepseek-balance-monitor/releases/latest)** — 22 KB, no dependencies, ready to run.
 
-The app looks for your DeepSeek API key in one of two places (in order):
+1. Download and unzip
+2. Move `DeepSeekBalance.app` to your Applications folder
+3. Right-click → Open (it's unsigned, macOS will complain — override it)
+4. Set your API key (see below)
+5. Done. It's in your menu bar.
 
-**Option A — Environment variable (recommended):**
-```bash
-export DEEPSEEK_API_KEY="sk-y...nAdd it to your `~/.zshrc` or launchd plist if you want it permanent.
+---
 
-**Option B — Key file:**
-```bash
-echo "sk-you...here" > ~/.deepseek-api-key
-chmod 600 ~/.deepseek-api-key
-```
+### How to Install (manual build)
 
-#### 2. Build & run
+Prefer to build from source? Clutch those pearls.
 
 ```bash
 git clone https://github.com/thmssm/deepseek-balance-monitor
@@ -56,11 +48,27 @@ cd deepseek-balance-monitor
 open DeepSeekBalance.app
 ```
 
-That's it. Seriously. One `swiftc` call, no dependencies, no npm, no Cargo, no pod install, no Docker, no "but first install Rust."
+That's it. One `swiftc` call, no dependencies, no npm, no Cargo, no pod install, no Docker, no "but first install Rust."
 
 *(If you don't have `rsvg-convert`, the build script skips the icon step. Or just `brew install librsvg` and rebuild.)*
 
-#### 3. Auto-start at login (optional)
+#### Set your API key
+
+The app looks for your DeepSeek API key in one of two places:
+
+**Option A — Environment variable (recommended):**
+```bash
+export DEEPSEEK_API_KEY="sk-you...here"
+```
+Add it to your `~/.zshrc` or launchd plist if you want it permanent.
+
+**Option B — Key file:**
+```bash
+echo "sk-you...here" > ~/.deepseek-api-key
+chmod 600 ~/.deepseek-api-key
+```
+
+#### Auto-start at login (optional)
 
 ```bash
 mkdir -p ~/Library/LaunchAgents
@@ -73,7 +81,7 @@ cat > ~/Library/LaunchAgents/com.deepseek.balance-monitor.plist <<'PLIST'
     <string>com.deepseek.balance-monitor</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/path/to/DeepSeekBalance.app/Contents/MacOS/DeepSeekBalance</string>
+        <string>/Applications/DeepSeekBalance.app/Contents/MacOS/DeepSeekBalance</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -114,6 +122,9 @@ A: Your API key is wrong, or DeepSeek is having a moment. Check your `DEEPSEEK_A
 
 **Q: The whale looks squished.**  
 A: No it doesn't. I spent way too long on that icon.
+
+**Q: Why is the app unsigned?**  
+A: Because Apple charges $99/year to tell people your app isn't a virus. It's a 22 KB menu bar icon. If you're worried, build from source — it's 90 lines of Swift.
 
 ---
 

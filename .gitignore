@@ -3,3 +3,4 @@ build/
 screenshot.png
 DeepSeekBalance.app/Contents/MacOS/DeepSeekBalance
 DeepSeekBalance.app/Contents/Resources/deepseek-icon.png
+*.zip
