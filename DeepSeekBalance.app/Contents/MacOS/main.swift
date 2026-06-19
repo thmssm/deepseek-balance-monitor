@@ -5,7 +5,9 @@ import Foundation
 private let refreshInterval: TimeInterval = 60
 private let deepseekBalanceURL = "https://api.deepseek.com/user/balance"
 private let deepseekTopUpURL = "https://platform.deepseek.com/top_up"
-private let panicThreshold: Double = 1.0
+private let thresholdDefaultsKey = "panicThreshold"
+
+let thresholdOptions: [Double] = [0.50, 1.00, 1.50, 2.00, 3.00, 5.00, 10.00]
 
 // ── API ────────────────────────────────────────────────────────────────────
 
@@ -41,6 +43,10 @@ func fetchBalance() async -> Double? {
 class BalanceMonitor: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
     var timer: Timer?
+    var panicThreshold: Double {
+        get { UserDefaults.standard.double(forKey: thresholdDefaultsKey).nonZero ?? 1.0 }
+        set { UserDefaults.standard.set(newValue, forKey: thresholdDefaultsKey) }
+    }
 
     func applicationDidFinishLaunching(_: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -64,11 +70,36 @@ class BalanceMonitor: NSObject, NSApplicationDelegate {
         RunLoop.current.add(timer!, forMode: .common)
     }
 
+    @objc func showMenu() {
+        guard let btn = statusItem.button else { return }
+        let menu = buildMenu()
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: btn.bounds.height + 5), in: btn)
+    }
+
     func buildMenu() -> NSMenu {
         let m = NSMenu()
         let titleItem = NSMenuItem(title: "DeepSeek Balance", action: nil, keyEquivalent: "")
         titleItem.isEnabled = false
         m.addItem(titleItem)
+
+        // Panic threshold submenu
+        let thresholdItem = NSMenuItem(title: "Panic at", action: nil, keyEquivalent: "")
+        let submenu = NSMenu()
+        let current = panicThreshold
+        for opt in thresholdOptions {
+            let item = NSMenuItem(title: String(format: "$%.2f", opt),
+                                  action: #selector(setThreshold(_:)),
+                                  keyEquivalent: "")
+            item.target = self
+            item.representedObject = opt
+            if abs(opt - current) < 0.001 {
+                item.state = .on
+            }
+            submenu.addItem(item)
+        }
+        thresholdItem.submenu = submenu
+        m.addItem(thresholdItem)
+
         m.addItem(.separator())
         let refresh = NSMenuItem(title: "Refresh Now", action: #selector(refresh), keyEquivalent: "r")
         refresh.target = self; m.addItem(refresh)
@@ -83,17 +114,17 @@ class BalanceMonitor: NSObject, NSApplicationDelegate {
         return m
     }
 
-    @objc func showMenu() {
-        guard let btn = statusItem.button, let menu = buildMenu() as NSMenu? else { return }
-        let pt = NSPoint(x: 0, y: btn.bounds.height + 5)
-        menu.popUp(positioning: nil, at: pt, in: btn)
+    @objc func setThreshold(_ sender: NSMenuItem) {
+        guard let val = sender.representedObject as? Double else { return }
+        panicThreshold = val
+        // Refresh the display to apply the new color immediately
+        refresh()
     }
 
     @objc func refresh() {
         guard let btn = statusItem.button else { return }
         btn.title = "refreshing..."
         Task { await doFetch() }
-        btn.contentTintColor = nil
     }
 
     @objc func copyBalance() {
@@ -114,14 +145,19 @@ class BalanceMonitor: NSObject, NSApplicationDelegate {
             if let b = balance {
                 let text = String(format: "%.2f USD", b)
                 btn.title = text
-                // contentTintColor tints both image and text (macOS 11+)
-                btn.contentTintColor = b < panicThreshold ? .systemRed : nil
+                btn.contentTintColor = b < self.panicThreshold ? .systemRed : nil
             } else {
                 btn.title = "--"
                 btn.contentTintColor = nil
             }
         }
     }
+}
+
+// ── Helper ─────────────────────────────────────────────────────────────────
+
+extension Double {
+    var nonZero: Double? { self == 0 ? nil : self }
 }
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────
