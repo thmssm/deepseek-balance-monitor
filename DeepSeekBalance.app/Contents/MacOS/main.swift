@@ -2,19 +2,15 @@ import Cocoa
 import Foundation
 
 // ── Configuration ───────────────────────────────────────────────────────────
-// Set DEEPSEEK_API_KEY in your environment, or the app will prompt on first run.
 private let refreshInterval: TimeInterval = 60
 private let deepseekBalanceURL = "https://api.deepseek.com/user/balance"
 private let deepseekTopUpURL = "https://platform.deepseek.com/top_up"
+private let panicThreshold: Double = 1.0
 
 // ── API ────────────────────────────────────────────────────────────────────
 
 func loadAPIKey() -> String? {
-    // 1. Environment variable
-    if let key = ProcessInfo.processInfo.environment["DEEPSEEK_API_KEY"], !key.isEmpty {
-        return key
-    }
-    // 2. Try ~/.deepseek-api-key (plain text file, mode 0600)
+    if let key = ProcessInfo.processInfo.environment["DEEPSEEK_API_KEY"], !key.isEmpty { return key }
     let path = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".deepseek-api-key").path
     if let content = try? String(contentsOfFile: path, encoding: .utf8) {
@@ -25,8 +21,7 @@ func loadAPIKey() -> String? {
 }
 
 func fetchBalance() async -> Double? {
-    guard let apiKey = loadAPIKey(),
-          let url = URL(string: deepseekBalanceURL) else { return nil }
+    guard let apiKey = loadAPIKey(), let url = URL(string: deepseekBalanceURL) else { return nil }
     var req = URLRequest(url: url)
     req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
     req.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -52,7 +47,6 @@ class BalanceMonitor: NSObject, NSApplicationDelegate {
         guard let btn = statusItem.button else { return }
         btn.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
 
-        // DeepSeek whale icon (template = follows dark/light mode)
         if let iconPath = Bundle.main.path(forResource: "deepseek-icon", ofType: "png"),
            let icon = NSImage(contentsOfFile: iconPath) {
             icon.isTemplate = true
@@ -60,7 +54,9 @@ class BalanceMonitor: NSObject, NSApplicationDelegate {
             btn.imagePosition = .imageLeading
         }
 
-        statusItem.menu = buildMenu()
+        btn.action = #selector(showMenu)
+        btn.target = self
+
         refresh()
         timer = Timer.scheduledTimer(
             timeInterval: refreshInterval, target: self,
@@ -70,57 +66,46 @@ class BalanceMonitor: NSObject, NSApplicationDelegate {
 
     func buildMenu() -> NSMenu {
         let m = NSMenu()
-
         let titleItem = NSMenuItem(title: "DeepSeek Balance", action: nil, keyEquivalent: "")
         titleItem.isEnabled = false
         m.addItem(titleItem)
-
         m.addItem(.separator())
-
         let refresh = NSMenuItem(title: "Refresh Now", action: #selector(refresh), keyEquivalent: "r")
-        refresh.target = self
-        m.addItem(refresh)
-
+        refresh.target = self; m.addItem(refresh)
         let copy = NSMenuItem(title: "Copy Balance", action: #selector(copyBalance), keyEquivalent: "c")
-        copy.target = self
-        m.addItem(copy)
-
+        copy.target = self; m.addItem(copy)
         m.addItem(.separator())
-
         let topup = NSMenuItem(title: "Top Up →", action: #selector(openTopUp), keyEquivalent: "t")
-        topup.target = self
-        m.addItem(topup)
-
+        topup.target = self; m.addItem(topup)
         m.addItem(.separator())
-
         let quit = NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q")
-        quit.target = self
-        m.addItem(quit)
-
+        quit.target = self; m.addItem(quit)
         return m
+    }
+
+    @objc func showMenu() {
+        guard let btn = statusItem.button, let menu = buildMenu() as NSMenu? else { return }
+        let pt = NSPoint(x: 0, y: btn.bounds.height + 5)
+        menu.popUp(positioning: nil, at: pt, in: btn)
     }
 
     @objc func refresh() {
         guard let btn = statusItem.button else { return }
-        btn.title = "loading..."
+        btn.title = "refreshing..."
         Task { await doFetch() }
+        btn.contentTintColor = nil
     }
 
     @objc func copyBalance() {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(statusItem.button?.title ?? "?", forType: .string)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(statusItem.button?.title ?? "?", forType: .string)
     }
 
     @objc func openTopUp() {
-        if let url = URL(string: deepseekTopUpURL) {
-            NSWorkspace.shared.open(url)
-        }
+        if let url = URL(string: deepseekTopUpURL) { NSWorkspace.shared.open(url) }
     }
 
-    @objc func quitApp() {
-        NSApplication.shared.terminate(nil)
-    }
+    @objc func quitApp() { NSApplication.shared.terminate(nil) }
 
     func doFetch() async {
         let balance = await fetchBalance()
@@ -129,16 +114,11 @@ class BalanceMonitor: NSObject, NSApplicationDelegate {
             if let b = balance {
                 let text = String(format: "%.2f USD", b)
                 btn.title = text
-                if let font = btn.font {
-                    let color: NSColor = b < 1.0 ? .red : .white
-                    let attrs: [NSAttributedString.Key: Any] = [
-                        .font: font,
-                        .foregroundColor: color
-                    ]
-                    btn.attributedTitle = NSAttributedString(string: text, attributes: attrs)
-                }
+                // contentTintColor tints both image and text (macOS 11+)
+                btn.contentTintColor = b < panicThreshold ? .systemRed : nil
             } else {
                 btn.title = "--"
+                btn.contentTintColor = nil
             }
         }
     }
