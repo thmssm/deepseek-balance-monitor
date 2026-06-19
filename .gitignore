@@ -1,5 +1,5 @@
 .DS_Store
-*.app/
-!DeepSeekBalance.app/Contents/MacOS/main.swift
-DeepSeekBalance.app/Contents/MacOS/DeepSeekBalance
 build/
+screenshot.png
+DeepSeekBalance.app/Contents/MacOS/DeepSeekBalance
+DeepSeekBalance.app/Contents/Resources/deepseek-icon.png
