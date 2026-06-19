@@ -8,7 +8,15 @@ This little menu bar app sits in your macOS top bar and **shows your remaining D
 
 **Turns red when you're under $1.** You know, the danger zone.
 
-![screenshot](screenshot.png)
+---
+
+### What it looks like
+
+![The full menu bar — it's up there, tiny, haunting](screenshot-full.png)
+*Zoom in. It's there. Right next to the battery. Haunting you.*
+
+![The balance close-up, pixelated for your anxiety](screenshot.png)
+*2.74 USD when I took this. It's 2.72 now. I just watched it drop writing this sentence.*
 
 ---
 
@@ -31,13 +39,11 @@ The app looks for your DeepSeek API key in one of two places (in order):
 
 **Option A — Environment variable (recommended):**
 ```bash
-export DEEPSEEK_API_KEY="sk-your-deepseek-api-key-here"
-```
-Add it to your `~/.zshrc` or launchd plist if you want it permanent.
+export DEEPSEEK_API_KEY="sk-y...nAdd it to your `~/.zshrc` or launchd plist if you want it permanent.
 
 **Option B — Key file:**
 ```bash
-echo "sk-your-deepseek-api-key-here" > ~/.deepseek-api-key
+echo "sk-you...here" > ~/.deepseek-api-key
 chmod 600 ~/.deepseek-api-key
 ```
 
@@ -76,7 +82,7 @@ cat > ~/Library/LaunchAgents/com.deepseek.balance-monitor.plist <<'PLIST'
     <key>EnvironmentVariables</key>
     <dict>
         <key>DEEPSEEK_API_KEY</key>
-        <string>sk-your-deepseek-api-key-here</string>
+        <string>sk-you...here</string>
     </dict>
 </dict>
 </plist>
