@@ -9,6 +9,43 @@ private let thresholdDefaultsKey = "panicThreshold"
 
 let thresholdOptions: [Double] = [0.50, 1.00, 1.50, 2.00, 3.00, 5.00, 10.00]
 
+// ── Custom Status View ─────────────────────────────────────────────────────
+
+class BalanceStatusView: NSView {
+    var balanceText: String = "..." { didSet { needsDisplay = true } }
+    var isLow: Bool = false { didSet { needsDisplay = true } }
+    var onClick: (() -> Void)?
+    private var iconImage: NSImage?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        if let icon = Bundle.main.image(forResource: "deepseek-icon") {
+            icon.isTemplate = true
+            iconImage = icon
+        }
+    }
+    required init?(coder: NSCoder) { nil }
+
+    override func mouseDown(with event: NSEvent) {
+        onClick?()
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        let iconSize: CGFloat = 14
+        let iconRect = NSRect(x: 4, y: (bounds.height - iconSize) / 2, width: iconSize, height: iconSize)
+        iconImage?.draw(in: iconRect)
+
+        let textX = iconRect.maxX + 4
+        let textW = bounds.width - textX - 4
+        let textRect = NSRect(x: textX, y: 2, width: textW, height: bounds.height - 4)
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        let color: NSColor = isLow ? NSColor(calibratedRed: 1, green: 0.2, blue: 0.2, alpha: 1) : .white
+        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
+        (balanceText as NSString).draw(in: textRect, withAttributes: attrs)
+    }
+}
+
 // ── API ────────────────────────────────────────────────────────────────────
 
 func loadAPIKey() -> String? {
@@ -43,6 +80,7 @@ func fetchBalance() async -> Double? {
 class BalanceMonitor: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
     var timer: Timer?
+    var statusView: BalanceStatusView?
     var panicThreshold: Double {
         get { UserDefaults.standard.double(forKey: thresholdDefaultsKey).nonZero ?? 1.0 }
         set { UserDefaults.standard.set(newValue, forKey: thresholdDefaultsKey) }
@@ -50,18 +88,11 @@ class BalanceMonitor: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        guard let btn = statusItem.button else { return }
-        btn.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
 
-        if let iconPath = Bundle.main.path(forResource: "deepseek-icon", ofType: "png"),
-           let icon = NSImage(contentsOfFile: iconPath) {
-            icon.isTemplate = true
-            btn.image = icon
-            btn.imagePosition = .imageLeading
-        }
-
-        btn.action = #selector(showMenu)
-        btn.target = self
+        let sv = BalanceStatusView(frame: NSRect(x: 0, y: 0, width: 120, height: 22))
+        sv.onClick = { [weak self] in self?.showMenu() }
+        statusItem.view = sv
+        statusView = sv
 
         refresh()
         timer = Timer.scheduledTimer(
@@ -70,10 +101,20 @@ class BalanceMonitor: NSObject, NSApplicationDelegate {
         RunLoop.current.add(timer!, forMode: .common)
     }
 
-    @objc func showMenu() {
-        guard let btn = statusItem.button else { return }
+    func showMenu() {
+        guard let sv = statusView else { return }
         let menu = buildMenu()
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: btn.bounds.height + 5), in: btn)
+        // Use the view's window to get proper screen coordinates
+        if let window = sv.window {
+            let frame = sv.convert(sv.bounds, to: nil)
+            let screenFrame = window.convertToScreen(frame)
+            let menuX = screenFrame.origin.x
+            let menuY = screenFrame.origin.y - 5
+            menu.popUp(positioning: nil, at: NSPoint(x: menuX, y: menuY), in: nil)
+        } else {
+            // Fallback: just show at reasonable position
+            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: 22), in: sv)
+        }
     }
 
     func buildMenu() -> NSMenu {
@@ -117,19 +158,17 @@ class BalanceMonitor: NSObject, NSApplicationDelegate {
     @objc func setThreshold(_ sender: NSMenuItem) {
         guard let val = sender.representedObject as? Double else { return }
         panicThreshold = val
-        // Refresh the display to apply the new color immediately
         refresh()
     }
 
     @objc func refresh() {
-        guard let btn = statusItem.button else { return }
-        btn.title = "refreshing..."
+        statusView?.balanceText = "refreshing..."
         Task { await doFetch() }
     }
 
     @objc func copyBalance() {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(statusItem.button?.title ?? "?", forType: .string)
+        NSPasteboard.general.setString(statusView?.balanceText ?? "?", forType: .string)
     }
 
     @objc func openTopUp() {
@@ -141,14 +180,17 @@ class BalanceMonitor: NSObject, NSApplicationDelegate {
     func doFetch() async {
         let balance = await fetchBalance()
         await MainActor.run {
-            guard let btn = self.statusItem.button else { return }
             if let b = balance {
                 let text = String(format: "%.2f USD", b)
-                btn.title = text
-                btn.contentTintColor = b < self.panicThreshold ? .systemRed : nil
+                self.statusView?.balanceText = text
+                self.statusView?.isLow = b < self.panicThreshold
+                let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+                let textW = (text as NSString).size(withAttributes: [.font: font]).width
+                let totalW = 4 + 14 + 4 + textW + 8
+                self.statusItem.length = totalW
+                self.statusView?.frame = NSRect(x: 0, y: 0, width: totalW, height: 22)
             } else {
-                btn.title = "--"
-                btn.contentTintColor = nil
+                self.statusView?.balanceText = "--"
             }
         }
     }
